@@ -129,8 +129,19 @@ function paintQuote(q){document.getElementById('quoteText').textContent='“'+q.
 async function getQuote(force=false){const btn=document.getElementById('refreshQuote');if(btn)btn.disabled=true;let q=null;try{const response=await fetch('https://api.quotable.io/random?tags=inspirational|wisdom',{headers:{'Accept':'application/json'},cache:'no-store'});if(response.ok){const data=await response.json();if(data.content)q={content:data.content,author:data.author||'Unknown'}}}catch(e){}
  if(!q){const current=quoteToday();const pool=quoteFallbacks.filter(x=>!current||x.content!==current.content);q=pool[Math.floor(Math.random()*pool.length)]||quoteFallbacks[Math.floor(Math.random()*quoteFallbacks.length)]}
  const saved={...q,date:todayKey()};try{localStorage.setItem(QUOTE_KEY,JSON.stringify(saved))}catch(e){}paintQuote(saved);if(btn)btn.disabled=false;return saved}
-function setupQuotes(){const saved=quoteToday(),today=todayKey();const modal=document.getElementById('quoteDialog');if(saved&&saved.date===today){paintQuote(saved)}else{const q=saved||quoteFallbacks[Math.floor(Math.random()*quoteFallbacks.length)];paintQuote(q);getQuote().then(()=>{const fresh=quoteToday();paintQuote(fresh||q);if(!sessionStorage.getItem('daily-fuel-quote-shown-'+today)){modal.showModal();sessionStorage.setItem('daily-fuel-quote-shown-'+today,'1')}}).catch(()=>{});return}
- if(!sessionStorage.getItem('daily-fuel-quote-shown-'+today)){modal.showModal();sessionStorage.setItem('daily-fuel-quote-shown-'+today,'1')}}
+function setupQuotes(){
+ const saved=quoteToday(),today=todayKey(),modal=document.getElementById('quoteDialog');
+ // Persist the dismissal date in localStorage, not sessionStorage. This survives
+ // refreshes, browser restarts, and returning to the app later the same day.
+ const shownKey='daily-fuel-quote-shown-'+today;
+ const showDailyModalOnce=()=>{
+   try{if(localStorage.getItem(shownKey)==='1')return;modal.showModal();localStorage.setItem(shownKey,'1')}catch(e){/* Keep the dashboard usable if storage is unavailable. */}
+ };
+ if(saved&&saved.date===today){paintQuote(saved);showDailyModalOnce();return}
+ const fallback=quoteFallbacks[Math.floor(Math.random()*quoteFallbacks.length)];
+ paintQuote(fallback);
+ getQuote().then(()=>{const fresh=quoteToday();paintQuote(fresh||fallback);showDailyModalOnce()}).catch(()=>showDailyModalOnce());
+}
 
 const todayKey=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const parseDay=s=>new Date(s+'T12:00:00');
